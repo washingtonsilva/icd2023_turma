@@ -1,0 +1,385 @@
+---
+title: "Aula03 - Introdução à Ciência dos Dados"
+subtitle: "Notebook Revisado"
+author: "Seu Nome"
+date: "2023-04-20"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# configuracoes globais
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, 
+                      digits = 999, scipen = 999)
+
+# pacotes utilizados
+library(PMwR)
+```
+
+
+## Exercício: Calcule as seguintes probabilidades associadas a uma distribuição normal padronizada.
+
+a. $P(Z <= 1.25)$
+
+
+b. $P(Z > 1.25)$
+
+
+c. $P(Z <= - .25)$
+
+
+d. $P(-0.8 <= Z <= 1..25)$
+
+
+## Distribuicao Normal: Calcule os quantis associados às seguintes probabilidades
+
+a. $P(Z < q)$ = 0.9798
+
+
+b. $P(Z < q)$ = 0.2546
+
+
+c. $P(Z > q)$ = 0.1075
+
+
+d. $P(Z > q)$ = 0.9418
+
+
+## Método de Monte Carlo
+
+Estimativa da probabilidade de que uma moeda honesta resulte "cara" em 
+$n$ lançamentos via simulaçào de Monte Carlo:
+
+```{r}
+mean(sample(0:1, 10, replace = T))
+mean(sample(0:1, 100, replace = T))
+mean(sample(0:1, 1000, replace = T))
+mean(sample(0:1, 10000, replace = T))
+mean(sample(0:1, 100000, replace = T))
+mean(sample(0:1, 1000000, replace = T))
+```
+
+
+Estimativa da probabilidade de que três lançamentos deu uma moeda resultem 
+em três caras:
+
+```{r}
+# 1. programando as tentativas (lancamentos)
+# cora == 1, coroa == 0
+trial <- sample(0:1, 3, replace = TRUE)
+
+# 2. determinando o "sucesso"
+if (sum(trial) == 3) 1 else 0
+
+# 3. replicacoes
+n <- 10000 # numero de repeticoes
+simvetor <- numeric(n) # inicializa o vetor
+
+for (i in 1:n) {
+trial <- sample(0:1, 3, replace = TRUE)
+sucesso <- if (sum(trial) == 3) 1 else 0
+simvetor[i] <- sucesso}
+
+# estimativa da probabilidade 
+mean(simvetor) 
+```
+
+
+**Integração via Simulação de Monte Carlo**
+
+```{r}
+# fixando a semente do algoritmo
+set.seed(2023)
+
+# definindo a funcao de interese
+f = function(x) {sin(x*(1-x))/(1+x+sqrt(x))}
+
+# integracao via SMC
+u = runif(100000)
+mean(f(u))
+```
+
+Podemos checar a estimativa utilizando a funçao `integrate`:
+
+```{r}
+integrate(f,0,1)
+```
+
+
+**Análise de Insolvência via Simulação de Monte Carlo**
+
+```{r}
+library(triangulr)
+library(highcharter)
+
+set.seed(123)  # fixando a semente. 
+n <- 10000.    # numero de repeticoes
+fi_sim <- c()  # inicializa o vetor
+
+for (i in 1:n) {
+  a <- rtri(1, 0.12, 0.2, 0.15)
+  b <- rtri(1, 0.8, 2.8, 1.6)
+  c <- rtri(1, 0.8, 1, 0.9)
+  d <- rtri(1, 4, 5.3, 4.5)
+  e <- rtri(1, 3.5, 8, 5)
+  fi <- 0.55*a + 1.65*b + 3.55*c - 1.06*d - 0.3333*e 
+  fi_sim[i] <- fi
+}
+
+dplyr::glimpse(fi_sim)
+
+# histograma dos FI simulados
+hchart(fi_sim, name = "Fator de Insolvência") |>  
+  hc_title(text = "Fator de Insolvência de Kanitz via Simulação de Monte Carlo")
+```
+
+
+Estimativa da probabilidade de insolvencia: P(FI) < -3
+
+```{r}
+sum(fi_sim < -3)/n
+```
+
+P(FI) < -3 é aproximadamente igual a 0,0001 (0,1%).
+
+
+Estimativa da probabilidade de solvencia: P(FI) > 0
+
+```{r}
+sum(fi_sim > 0)/n
+```
+
+P(FI) > o é aproximadamente igual a 0,247 (24,7%).
+
+
+**Análise de Viabilidade Econômica sob Incerteza**
+
+
+```{r}
+
+set.seed(567) # fixando
+
+# informacoes sobre o projeto
+fc0 <- runif(100000, 65000, 85000)
+receita <- runif(100000, 12000, 16000)
+valor_residual <- rtri(100000, 4000, 6000, 5000)
+tempo <- rtri(100000, 9, 11, 10)
+taxa <- rtri(100000, 0.1, 0.15, 0.12)
+
+# VPL 
+vpl <- receita*(1 - (1 + taxa)^(-tempo))/taxa + valor_residual/(1 + taxa)^(tempo) - fc0
+
+# histograma dos VPL simulados
+hchart(vpl, name = "VPL") |> 
+  hc_title(text = "VPL de um Prjeto via Simulação de Monte Carlo")
+
+```
+
+Estimativa da viabilidade do projeto P(VPL > 0):
+
+```{r}
+sum(vpl > 0)/100000
+```
+
+P(VPL > 0) aproxidamente 68,06%.
+
+Estimativa da inviabilidade do projeto P(VPL <= 0):
+
+```{r}
+sum(vpl <= 0)/100000
+```
+
+P(VPL > 0) aproxidamente 31,94%.
+
+
+## Valor-em-Risco (VaR)
+
+Importando os dados de precos de tres acoes
+
+```{r}
+precos <- readr::read_csv('dados/stocks.csv')
+head(precos)
+dplyr::glimpse(precos)
+```
+
+
+Calculando os retornos simples líquidos das ações e armazenando o resultado 
+na matriz `retornos`:
+
+```{r}
+retornos <- as.matrix(PMwR::returns(precos))
+dim(retornos)
+head(retornos) # exibe as primeiras 6 linhas do objeto 
+tail(retornos) # exibe as 6 últimas linhas
+```
+
+Definindo o valor da carteira e a probabilidade p:
+
+```{r}
+valor_carteira <- 1000
+p <- 0.01
+```
+
+
+### VaR por Simulação Histórica - 1 ação
+
+O VaR com probabilidade p é simplesmente o $(T \times p)$_ésimo 
+valor do vetor de retornos ordenado multiplicado pelo valor da 
+carteira:
+
+```{r}
+retA <- retornos[,1]        # seleciona retornos de A - coluna 1
+T <-  length(retA)          # total de elementos de retA
+retAs <- sort(retA)         # ordena os retornos em ordem crescente
+op <- T*p                   # (T x p)_esimo valor do vetor
+VaR_A_HS <- -retAs[op]*valor_carteira # calculo do VaR
+VaR_A_HS
+```
+
+A estimativa do VaR (1-dia) (99% de confiança) é $ 17.37 para o caso da 
+carteria conter somente a ação A. 
+
+Ou seja, temos 99% de confiança probabilidade) de que a perda da carteira não 
+será superior a $ 17.37 em um dia, pela estimativa do VaR obtida pelo método histórico.
+
+## VaR por Simulação Histórica - carteira com 3 ações
+
+definindo a matriz de pesos da carteira:
+
+```{r}
+w = matrix(c(0.3, 0.2, 0.5)) 
+w
+```
+
+obtendo os retornos ordenados da carteira
+
+```{r}
+y <- retornos
+ret <- y %*% w     #  %*% operador para multiplicar matrizes      
+rets = sort(ret)   #  ordena os retornos em ordem crescente
+plot(rets)
+```
+
+Calculando o VaR da carteira:
+
+```{r}
+VaR_carteira_SH = -rets[op]*valor_carteira
+VaR_carteira_SH
+```
+
+A estimativa do VaR (1-dia) (99%) é de $ 14.11 para o caso da carteria 
+conter as tres ações com pesos: A = 30%, B = 20% e C = 50%. 
+
+Isto é, temos 99% de confiança (probabilidade) de que a 
+perda desta carteira não será superior a $ 14.11  em um dia pela estimativa 
+do VaR obtida pelo método histórico.
+ 
+
+## VaR Normal - 1 ação
+
+```{r}
+sigma <- sd(retA) # estimando sigma
+VaR_normal  <- -sigma * qnorm(p) * valor_carteira
+VaR_normal
+```
+
+A estimativa do VaR (1-dia) (99% de confiança) é $ 14.95 para o caso da 
+carteria conter somente a ação A, assumindo que os retornos da ação da 
+empresa A sigam uma distribuição normal.
+
+Ou seja, temos 99% de confiança (probabilidade) de que a perda da carteira não 
+será superior a $ 14.95 em um dia, pela estimativa do VaR obtida, assumindo 
+que a distribuição dos retornos siga aproximadamente uma distribuição normal.
+
+
+## VaR Normal - carteira com 3 ações
+
+Calculando a volatilidade (desvio-padrao) da carteira de investimentos:
+
+```{r}
+y2 <- retornos
+sigma_carteira <- sqrt(t(w) %*% cov(y2) %*% w)[1] 
+sigma_carteira
+```
+
+Nota: `[1]` ao final da expressão, converte um elemento de uma matriz em um 
+número.
+
+```{r}
+VaR_carteira <- -sigma_carteira*qnorm(p)*valor_carteira
+VaR_carteira
+```
+
+O VaR de 1-dia (99%) é igual a $12.28 para o caso da carteria conter as 
+tres ações com pesos (A = 30%, B = 20% e C = 50%), assumindo que os 
+retornos da carteira sigam uma distribuição normal.
+
+Isto é, temos 99% de confiança (probabilidade) de que a 
+perda desta carteira não será superior a $ 12.28  em um dia pela estimativa 
+do VaR, assumindo que os retornos da carteira sigam uma distribuição normal.
+
+
+## Cálcudo do VaR com o Pacote `PerformanceAnalytics`
+
+Para utilizarmos as funções do pacote `PerformanceAnalytics` para obter 
+estimativas do VaR para a carteira com as 3 acões, para isso, os dados 
+precisam ser convertidos para uma classe de dados utilizada para representar séries temporais denominada `xts` (de *extended time series*). 
+
+Para convertermos a matriz `retornos` para um objeto da classe `xts`, 
+precisamos incialmente converter a matriz para a classe \mais básica para representar séries temporais da linguagem R, que é a classe 
+`ts` (de *time series*). 
+
+Isto posto, o código a seguir faz a conversão necessária:
+
+```{r}
+library(xts)
+
+# converte retornos para a classe ts
+retornos_ts <- ts(retornos, start = 1)
+class(retornos_ts)
+
+# converte retornos_ts para a classe xts
+retornos_xts <- as.xts(retornos_ts)
+class(xts)
+
+# grafico das 3 series de retornos
+plot(retornos_xts, multi.panel = TRUE)
+```
+
+Definimos p = 0.01 nos cálculos manuais do VaR anteriormente, mas para a 
+funcão VaR do pacote PerformanceAnalytics, p = 1 - p = 1 - 0.01 = 0.99. 
+
+Assim, podemos estimar o VaR (99%) pelo método de simulação histórica com 
+o seguinte código
+
+```{r}
+library(PerformanceAnalytics)
+
+VaR(retornos_xts, 
+    p = .99, 
+    method = "historical", 
+    weights = c(0.3, 0.2, 0.5),     
+    portfolio_method = "component")
+```
+
+Como valor da carteira é de 1.000 reais, a estimatica do VaR (1-dia) (99% de 
+confiança) pelo método histórico é 1000*0.01404269 = R\$ 14.04. 
+
+Isto é, temos 99% de confiança de que a perda da carteira não será superior 
+a R\$ 14.04 em um dia, pelo método histórico.
+
+Se desejamos calcular o VaR da carteira considerando que os retornos seguem uma distribuição normal, basta alterar o argumento `method` para `gaussian`.
+
+
+```{r}
+VaR(retornos_xts, 
+    p = .99, 
+    method = "gaussian", 
+    weights = c(0.3, 0.2, 0.5),     
+    portfolio_method = "component")
+```
+
+A estimativa do VaR (1-dia) (99% de confiança) é 1000*0.0120594 = R\$ 12.06.
+
+Isto é, temos 99% de confiança de que a perda da carteira não será superior a 
+R\$ 12.06 em um dia, considerando que os retornos da carteira seguem 
+aproximadamente uma distribuição normal.
