@@ -1,0 +1,248 @@
+---
+title: "Aula 10 - Introdução à Ciência dos Dados"
+subtitlte: "Aplicação do Modelo de Regressão Linear Simples"
+author: "Seu Nome"
+date: "2023-06-01"
+output: html_document
+---
+
+<style type="text/css">
+  body{
+  font-size: 12pt;
+  text-align: justify
+      }
+</style>
+
+
+## Setup
+
+```{r setup, include=TRUE, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+options(scipen = 9999, digits = 2)
+
+# Pacotes utilizados
+library(tidyverse) # readr::read_csv2()
+library(ggthemes)  # theme_minimal()
+library(lmtest)    
+library(DescTools)
+library(car)
+library(stargazer) # stargazer(): tabelas formatadas
+library(knitr)     # kable(): tabelas formatadas
+```
+
+
+## Artigo: 
+
+Boente et. al. (2006) analisaram diversos métodos para a estimação de custos, e abordaram a utilização de modelos de regressão, vamos tentar reproduzir os principais resultados envolvendo modelos de regressão com os dados exibidos no artigo.
+
+## Importação e Preparação dos dados para análise. 
+
+A variável `Mês/Ano` precisa ser importada mas não é utilizada na modelagem.
+
+```{r}
+dados_custos <- read_csv2("dados/custos.csv",
+                          locale = locale("pt"),
+                          skip = 1,
+                          col_names = c("mes", "unidades_vendidas", "custo_total"),
+                          col_types = cols(mes = col_date(format = "%b/%y"),
+                                           unidades_vendidas = col_double(),
+                                           custo_total = col_double()))
+glimpse(dados_custos)
+dados_custos <- dplyr::select(dados_custos, -mes)
+glimpse(dados_custos)
+```
+
+
+## Análise Exploratória dos Dados 
+
+### Gráfico de Dispersão
+
+Vamos fazer um gráfico de dispersão entre o custo total e as unidades vendidas, 
+além disso, vamos inserir uma reta estimada de regressão linear. 
+
+```{r}
+ggplot(dados_custos, aes(x = unidades_vendidas, y = custo_total)) + 
+  geom_point() +
+  geom_smooth(method = lm, se = FALSE) + 
+  theme_minimal()
+```
+
+Vamos melhorar os limites exibidos nos eixos x e y, é sempre importante 
+incluir a origem em gráfico. Podemos obter limites adequados, observando 
+os valores máximos das variáveis:
+
+```{r}
+summary(dados_custos)
+```
+
+
+```{r}
+ggplot(dados_custos, aes(x = unidades_vendidas, y = custo_total)) + 
+  geom_point() +
+  geom_smooth(method = lm, se = FALSE) + 
+  xlim(0,80000) + 
+  ylim(0,1800000) + 
+  labs(x = "Unidades Vendidas",
+       y = "Custo Total (em R$)") +
+  theme_minimal()
+```
+
+Observando o gráfico de dispersão, o modelo de regressão linear utilizados pelos autores parece adequado? O gráfico indica a presença de outliers problemáticos?
+
+O gráfico de dispersão indica que um modelo linear parece adequado para modelar a relação entre as Unidades Vendidas e o Custo Total de produção. 
+
+O gráfico indica uma forte correlação linear positiva entre as variáveis e não indica a presença de outliers que podem distorcer a relação entre as variáveis.
+
+Tabela de estatísticas descritivas das variáveis em análise.
+
+### Estatísticas Descritivas
+
+```{r}
+kable(psych::describe(dados_custos))
+```
+
+
+## Estimação do Modelo de Regressão Linear Simples
+
+Um modelo de regressão é estimado com a função `lm` (de *linear model*) e 
+os resultados da estimação podem ser vistos usando a função `summary`
+
+```{r}
+modelo <- lm(custo_total ~ unidades_vendidas, data = dados_custos)
+summary(modelo)
+```
+
+
+## Diagnóstico do Modelo 
+
+1. Teste RESET de Especificação 
+
+```{r}
+## Teste de linearidade
+lmtest::resettest(modelo, type = "regressor")
+```
+
+O teste RESET (valor-p = 0.3, $\alpha$ = 5%) forneceu evidências de que um 
+modelo linear é uma especificação adequada. 
+
+
+2. Teste Jarque-Bera de normalidade. 
+
+```{r}
+## Teste de Normalidade de Jarque-Bera
+DescTools::JarqueBeraTest(modelo$residuals, robust = TRUE)
+```
+
+O Teste de normalidade de Jarque-Bera  (valor-p = 0.6, $\alpha$ = 5%) forneceu 
+evidências de que a hipótese nula de que os resíduos do modelo seguem 
+uma distribuição aproximadamente normal não deve ser rejeitada.
+
+
+3. Teste Breustch-Pagan de Heterocedasticidade. 
+
+```{r}
+## Teste de Breusch-Pagan: homocedasticidade
+lmtest::bptest(modelo)
+```
+
+O Teste de homogeneidade de variâncias de Breusch-Pagam (valor-p = 0.8, $\alpha$ = 5%) forneceu evidências de que a hipótese nula de que a variância dos resíduos é 
+homogênea não deve ser rejeitada.
+
+
+4. Teste de Durbin-Watson
+
+```{r}
+# Teste de Durbin-Watson 
+car::durbinWatsonTest(modelo)
+```
+
+O Teste de autocorrelação dos resíduos de Durbin-Watson (valor-p = 0.5, $\alpha$ = 5%) forneceu evidências de que a hipótese nula de que os resíduos não são 
+autocorrelacionados não deve ser rejeitada.
+
+
+## Questões
+
+**O modelo estimado parece adequado? Explique.**
+
+**Resp.:**
+
+Sendo $x$, o número de unidades vendidas, podemos escrever o modelo de regressão linear estimado como:
+
+$$
+\hat{\text{custos totais}} = 43100,00 + 23,00\times (\text{unidades vendidas})
+$$
+
+Os testes de diagnóstico do modelo realizados na questão 5, indicam que o 
+modelo de regressão linear é adequado (Teste RESET) para o caso, além disso, 
+os testes forneceram evidências de que as hipóteses usuais sobre os resíduos 
+são válidas, ou seja, os dados fornecem evidências de que os resíduos 
+seguem uma distribuição aproximadamente normal, de que a variância dos 
+resíduos é homogênea e de que os resíudos nào são autocorrelacionados.
+
+Além disso, a estimativa do $R^2$-ajustado. igual a 99%, indica que as 
+unidades vendidas possui forte capacidade explicativa do custo total.
+
+
+**Qual a interpretação das estimativas pontuais ($\hat{\beta}_0$ e $\hat{\beta}_1$) ? Quais as estimatativas por intervalo, como 95\% de confiança, de  $\beta_o$ e $\beta_1$?**
+
+**Resp.:**
+
+a) $\hat{\beta}_0 =$ 43100,00 é a estimativa do custo fixo de produção. 
+Ou seja, é a estimativa dos custos quando as unidades vendidas são iguais 
+a zero.
+
+b) $\hat{\beta}_1 =$ 23,00 é a estimativa do custo unitário variável. No caso, 
+estima-se que para um aumento de uma unidade produzida, o custo total irá 
+aumentar, em média, em R\$ 23,00.
+\end{itemize}
+
+c) Estimativas por intervalo de confiança
+
+```{r}
+confint(modelo, level = 0.95)
+```
+
+
+**Obtenha previsões pontuais e por IP(95\%) do custo total caso as unidades vendidas sejam iguais a 80.000, 85.000 e 90.000, respectivamente.**
+
+**Resp.:**
+
+Podemos utilizar o modelo estimado para fazer previsões dos custos 
+totais para diferentes de níveis de atividade (vendas). A função 
+`predict` produz estimativas dos intervalos de predicão com o 
+nível de confiança desejado:
+
+```{r}
+x <- data.frame(unidades_vendidas = c(80000, 85000, 90000))
+predict(modelo, x, interval = "prediction", level = 0.95)
+```
+
+
+## Comunicação dos Resultados
+
+A função `stargazer`, do pacote `stargazer`, produz código $LaTeX$, 
+código HTML e texto ASCII para criar tabelas bem formatadas que contêm resultados de análise de regressão de vários modelos. 
+
+A função também pode gerar tabelas de estatísticas descritivas e para 
+a exibição de dados.
+
+Vamos gerar uma tabela com os resultados básicos do modelo de regressão:
+
+```{r, results='asis'}
+stargazer(modelo,
+          covariate.labels = c("Unidades Vendidas", "Intercepto"),
+          style = "aer",
+          digits = 2,
+          dep.var.labels = c("Custos Totais (reais)"),
+          ci = TRUE, 
+          type = "html",
+          out = "tabela_html")
+```
+
+
+## Referência
+
+BOENTE, Diego Rodrigues; DE MELO, Clayton Levy Lima; TARSO, Paulo de. "Métodos 
+de estimação de custos: Estudo de caso de uma empresa comercial com enfoque na 
+análise de regressão." *In:* **Anais do Congresso Brasileiro de Custos-ABC**. 
+2006.

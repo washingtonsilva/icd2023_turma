@@ -1,0 +1,246 @@
+---
+title: "Aula 11 - Introdução à Ciência dos Dados"
+subtitlte: "Análise de Correlação"
+author: "Seu Nome"
+date: "2023-06-15"
+output: html_document
+---
+
+<style type="text/css">
+  body{
+  font-size: 12pt;
+  text-align: justify
+      }
+</style>
+
+
+# Pacotes Necessários
+
+Verifique se algum pacote não está instalado antes de executar o código.
+
+```{r setup}
+library(pwr)                   # poder e tamanho da amostra
+library(BatchGetSymbols)       # importar dados do yahoo finance
+library(tidyverse)
+library(xts)                   # uma das classes para series temporais em R
+library(PerformanceAnalytics)  # return.Calculate(), chart.Correlation()
+library(effectsize)            # interpret_r() 
+library(DescTools)             # SpearmanRho()
+```
+
+
+# Determinacação do tamanho da amostra para estimar $\rho$
+
+Tamanho da amostra necessário para estimar uma correlação fraca,
+segundo Cohen (1988), com $\alpha$ = 5% e poder do teste desejado de 
+80%.
+
+```{r}
+pwr.r.test(r = 0.1, power = 0.80, sig.level = 0.05, alternative = "two.sided")
+```
+
+
+Tamanho da amostra necessário para estimar uma correlação moderada,
+segundo Cohen (1988), com $\alpha$ = 5% e poder do teste desejado de 
+80%.
+
+```{r}
+pwr.r.test(r = 0.3, power = 0.80, sig.level = 0.05, alternative = "two.sided")
+```
+
+
+Tamanho da amostra necessário para estimar uma correlação forte,
+segundo Cohen (1988), com $\alpha$ = 5% e poder do teste desejado de 
+80%.
+
+```{r}
+pwr.r.test(r = 0.5, power = 0.80, sig.level = 0.05, alternative = "two.sided")
+```
+
+
+
+# Questões
+
+## 1. Usando o pacote `BatchGetSymbols` importe dados dos últimos 1000 dias para as seguintes ações: `AAPL`, `WEGE3.SA`, `AMZN`, `GOOG`.
+
+```{r}
+# tickers das ações
+tickers <- c('AAPL', 'WEGE3.SA', 'AMZN', 'GOOG')
+
+df_stocks <- BatchGetSymbols(tickers = tickers,
+                             first.date = Sys.Date() - 1000,
+                             last.date = Sys.Date(),
+                             do.complete.data = TRUE
+                             )[[2]]
+
+# Inspecionando o objeto importado
+glimpse(df_stocks)
+```
+
+
+
+## 2. Converta os dados diários dos preços de fechamento das ações para o formato `xts`, usando o pacote `xts`, este é um formato específico para o armazenamento de séries temporais em R. Além disso, elabore gráficos das séries temporais de preços para cada uma das ações.
+
+
+```{r}
+## Apple: preços
+apple <- df_stocks %>% filter(ticker == "AAPL") %>% select(ref.date, price.close)
+apple_ts <- as.xts(apple$price.close, order.by = apple$ref.date)
+length(apple_ts)     # dimensao da serie
+plot(apple_ts, main = "Preços Diários das Ações: Apple") # grafico da serie de precos
+```
+
+
+```{r}
+## Weg: precos
+weg <- df_stocks %>% filter(ticker == "WEGE3.SA") %>% select(ref.date, price.close)
+weg_ts <- as.xts(weg$price.close, order.by = weg$ref.date)
+length(weg_ts)
+plot(weg_ts, main = "Preços Diários das Ações: Weg")
+```
+
+
+```{r}
+## Amazon: precos
+amazon <- df_stocks %>% filter(ticker == "AMZN") %>% select(ref.date, price.close)
+amaz_ts <- as.xts(amazon$price.close, order.by = amazon$ref.date)
+length(amaz_ts)
+plot(amaz_ts, main = "Preços Diários das Ações: Amazon")
+```
+
+
+```{r}
+## Google: precos
+google <- df_stocks %>% filter(ticker == "GOOG") %>% select(ref.date, price.close)
+google_ts <- as.xts(google$price.close, order.by = google$ref.date)
+length(google_ts)
+plot(google_ts, main = "Preços Diários das Ações: Google")
+```
+
+
+
+## 3. Calcule os retornos compostos continuamente a partir dos preços no formato `xts` usando a função `Return.calculate` do pacote `PerformanceAnalytics`. Elabore gráficos das séries temporais dos retornos para cada uma das ações.
+
+```{r}
+## Apple: retornos
+apple_ret <- na.omit(Return.calculate(apple_ts, method = "log"))
+plot(apple_ret, main = "Retornos Diários das Ações: Amazon")
+```
+
+
+```{r}
+## Weg: retornos
+weg_ret <- na.omit(Return.calculate(weg_ts, method = "log"))
+plot(weg_ret, main = "Retornos Diários das Ações: WEG")
+```
+
+
+```{r}
+## Amazon: retornos
+amaz_ret <- na.omit(Return.calculate(amaz_ts, method = "log"))
+plot(amaz_ret, main = "Retornos Diários das Ações: Amazon")
+```
+
+
+```{r}
+## Google: retornos
+google_ret <- na.omit(Return.calculate(google_ts, method = "log"))
+plot(google_ret, main = "Retornos Diários das Ações: Google")
+```
+
+
+
+## 4. Faça a fusão da séries de retornos das ações em um único objeto usando a função `merge.xts()` do pacote `xts` e nomeie o objeto como `retornos`.
+
+```{r}
+retornos <- merge.xts(apple_ret, weg_ret, amaz_ret, google_ret)
+head(retornos)
+```
+
+
+
+## 5. Faça uma análise gráfica da correlação entre os retornos das ações usando a função `chart.Correlation()` do pacote `PerformanceAnalytics` aplicada sobre o objeto `retornos`.
+
+```{r}
+## funcao do pacote PerformanceAnalytics
+chart.Correlation(retornos, histogram = TRUE)
+```
+
+
+
+## 6. Encontre a matriz de correlações de Pearson entre os retornos.
+
+```{r}
+## cor = funcao interna
+cor(retornos)
+```
+
+
+
+## 7. Obtenha estimativas pontuais do $r$  de Pearson entre os retornos das ações e teste a hipótese nula de que $r = 0$.
+
+```{r}
+## cor = funcao interna
+cor(retornos)
+```
+
+
+## 8. Dadas as regularidades empíricas dos retornos de açoes, qual estimador de $\rho$, você considera mais apropriado para verificar quais séries de retornos possuem correlações estatisticamente significativas? Reporte pelo menos um resultado, aplicando o estimador escolhido, conforme o padrão da APA.
+
+### Apple e Weg
+
+  Dadas as regularidades empíricacs observadas para as séries de retornos 
+de ações, por exemplo, as séries tendem a apresentar considerável leptocurtose e 
+assimetria, o coeficiente de correlação de Pearson, que baseia-se na 
+normalidade das variáveis, não é apropriado. Neste caso, o coeficiente de 
+Spearman (não-paramétrico) é mais indicado.
+
+  Apenas para verificar as diferenças, vejamos os resultados da análise de 
+correlação, inicialmente, utilizando o coeficiente de Pearson:
+
+```{r}
+### pearson
+cor.test(as.numeric(apple_ret), as.numeric(weg_ret), alternative = "two.sided", 
+         method = "pearson")
+```
+
+  Em seguida, vejamos os resultados fornecidos pela aplicação do coeficiente 
+Spearman:
+
+```{r}
+### spearman via funcao interna cor.test - nao estima IC para r
+cor.test(as.numeric(apple_ret), as.numeric(weg_ret), alternative = "two.sided", 
+         method = "spearman")
+```
+
+Veja, que a função interna `cor.test()` não retorna uma estimativa de intervalo 
+de confiança para o estimador de Spearman. Neste caso, há várias alternativas, vamos utilizar a função `SpearmanRho()` do pacote `DescTools()`:
+
+```{r}
+### spearman via funcao SpearmanRho do pacote DescTools - estima IC para r
+SpearmanRho(as.numeric(apple_ret), as.numeric(weg_ret), conf.level = 0.95)
+```
+
+Qual seria a magnitude da correlação entre os retornos da Apple e da Weg 
+segundo os critérios de Cohen (1988)? Podemos utilizar a função 
+`interpret_r()` do pacote `effectsize()`.
+
+```{r}
+### interpretacao segundo Cohen (1988)
+interpret_r(0.2872778, rules = "cohen1988")
+```
+
+Seguindo o padrão APA para reportar estimativas de coeficientes de 
+correlação, uma possibilidade seria:
+
+"Um coeficiente de correlação de Spearman foi estimado para avaliar a relação 
+monotônica entre os retornos dos preços das ações da Apple e da Weg.Os resultados indicam uma correlação positiva fraca mas significativa entre os retornos das duas ações: $S = 41238360$, $valor-p < .001$, $r = .29$, $n = 703$, IC (95\%) $[0.22, 0.35]$."
+
+**Sua Vez:** Efetue a análise de correlação entre as demais séries de retornos.
+   
+
+### Apple e Amazon
+
+
+
+

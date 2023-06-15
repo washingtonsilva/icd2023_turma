@@ -1,0 +1,178 @@
+---
+title: "Aula07 - Introdução à Ciência dos Dados"
+subtitle: "Visualização de Dados Usando o pacote ggplot2"
+author: "Seu Nome"
+date: "2023-05-04"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# configuracoes globais
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, 
+                      digits = 3, scipen = 999)
+
+# pacotes utilizados
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(ggthemes)
+library(PerformanceAnalytics)
+```
+
+
+## Importando dados para análise
+
+carteira_analise:
+
+```{r}
+carteira_analise <- read_rds('dados_analise/carteira_analise.rds')
+```
+
+checando os dados:
+
+```{r}
+summary(carteira_analise)
+```
+
+
+## Covariação: Gráfico de Dispersão
+
+```{r, out.width = "60%", echo = TRUE, fig.align = 'center'}
+ggplot(data = carteira, mapping = aes(x = VALE, y = PETR4.SA)) +
+  geom_point()
+```
+
+
+```{r, out.width = "60%", echo = TRUE, fig.align = 'center'}
+ggplot(data = carteira, mapping = aes(x = VALE, y = PETR4.SA)) +
+  geom_bin2d()
+```
+
+
+```{r, out.width = "60%", echo = TRUE, fig.align = 'center'}
+ggplot(data = carteira, mapping = aes(x = VALE, y = PETR4.SA)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE)
+```
+
+
+```{r, out.width = "60%", echo = TRUE, fig.align = 'center'}
+ggplot(data = carteira, mapping = aes(x = WEGE3.SA, y = PETR4.SA)) +
+  geom_point()
+```
+
+
+```{r, out.width = "60%", echo = TRUE, fig.align = 'center'}
+ggplot(data = carteira, mapping = aes(x = WEGE3.SA, y = PETR4.SA)) +
+  geom_bin2d()
+```
+
+
+```{r, out.width = "60%", echo = TRUE, fig.align = 'center'}
+ggplot(data = carteira, mapping = aes(x = WEGE3.SA, y = PETR4.SA)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE)
+```
+
+
+```{r, out.width = "60%", echo = TRUE, fig.align = 'center'}
+ggplot(data = carteira, mapping = aes(x = WEGE3.SA, y = VALE)) +
+  geom_point()
+```    
+
+
+```{r, out.width = "60%", echo = TRUE, fig.align = 'center'}
+ggplot(data = carteira, mapping = aes(x = WEGE3.SA, y = VALE)) +
+  geom_bin2d()
+```
+
+
+```{r, out.width = "60%", echo = TRUE, fig.align = 'center'}
+ggplot(data = carteira, mapping = aes(x = WEGE3.SA, y = VALE)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE)
+```
+
+Tudo ao Mesmo Tempo:
+
+```{r, out.width = "80%", echo = TRUE, fig.align = 'center'}
+library(PerformanceAnalytics)
+
+chart.Correlation(carteira, histogram = TRUE)
+```
+
+
+## Gráfico de Bolhas
+
+
+grafico de bolhas basico:
+
+```{r}
+data <- gapminder::gapminder %>% filter(year =="2007") |> select(-year)
+
+ggplot(data, aes(x = gdpPercap, y = lifeExp, size = pop)) +
+    geom_point(alpha = 0.7)
+```
+
+
+```{r}
+data |>
+  arrange(desc(pop)) |>
+  ggplot(aes(x = gdpPercap, y = lifeExp, size = pop)) +
+    geom_point(alpha = 0.5) +
+    scale_size(range = c(.1, 10), name ="População (Milhões)")
+```
+
+
+```{r}
+data %>%
+  arrange(desc(pop)) |>
+  ggplot(aes(x = gdpPercap, y = lifeExp, size = pop, color = continent)) +
+    geom_point(alpha = 0.5) +
+    scale_size(range = c(.1, 10), name = "População (Milhões")
+```
+
+
+
+## Gráficos de Linha para Séries Temporais
+
+
+Usando o sistema gráfico interno da linguagem R:
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+plot(AirPassengers,
+     xlab = "Mês",
+     ylab = "Total de Passageiros (1000's)",
+     main = "Total de Passageiros entre 1949 e 1961", 
+     col = "blue")
+grid()
+```
+
+
+Importando dados do Sistema Gerenciador de Séries do Banco Central do Brasil e
+criando um gráfico com o gglot2:
+
+
+```{r, echo = FALSE, message = FALSE}
+library(GetBCBData)
+library(ggplot2)
+
+# define ids
+id.series <- c(utilizacao_capacidade_instalada = 1344)
+first.date = '2002-01-01'
+
+# obtem serie do bcb
+df_uci <- gbcbd_get_series(id = id.series,
+                            first.date = first.date,
+                            last.date = Sys.Date(), 
+                            use.memoise = FALSE)
+
+# grafico de linha via ggplot2
+ggplot(data = df_uci, aes(x = ref.date, y = value)) + 
+  geom_line(color = "blue") + 
+  labs(x = 'Trimestre', y = 'Utilização da Capacidade Instalada (%)', 
+       title  = 'Utilização da capacidade instalada - Geral (FGV): 2002/2023',
+       subtitle = "Periodicidade: Trimestral",
+       caption = "Fonte: Elaborada pelo Autor com dados do BCB") +
+  theme_minimal()
+```

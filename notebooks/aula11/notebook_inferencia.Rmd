@@ -1,0 +1,209 @@
+---
+title: "Aula 11 - Introdução à Ciência dos Dados"
+subtitlte: "Fundamentos de Inferência Estatística"
+author: "Seu Nome"
+date: "2023-06-15"
+output: html_document
+---
+
+<style type="text/css">
+  body{
+  font-size: 12pt;
+  text-align: justify
+      }
+</style>
+
+
+
+## Estimação Pontual por Máxima Verossimilhança
+
+Estimando a proporção de relatórios que apresentam uma não conformidade do 
+exemplo contido nos slides por máxima versossimilhança. 
+
+A amostra de 10 relatórios financeiros é:
+
+```{r}
+x <- c(1,0,1,0,0,0,0,0,0,1)
+```
+
+Escrevendo uam função para representar a funcão de log-verossimilhança:
+
+```{r}
+log_likelihood <- function(p, x) sum(dbinom(x, size = 1, prob = p, log = T))
+```
+
+Otimizando, ou seja, calcuando o valor de p que máximiza a função de log-verossimilhança:
+
+```{r}
+optimize(log_likelihood, interval = c(0, 1), x = x, maximum = T)
+```
+
+
+## Estimação por Intervalo de Confiança
+
+### Teorema Central do Limite
+
+Uma estimativa por intervalo de confiança da proporção de relatórios que apresentam uma não conformidade, pelo estimador obtido aplicando o Teorema Central do Limite pode ser obtida com a função interna `prop.test`
+
+`pro.test(total de sucessos, repeticoes, conf.level = 0.95)`
+
+Esta função também executa testes de hipóteses em relação à proporção, 
+mas estamos interessados na estimativa por intervalo neste exemplo. 
+Como foram detectados, 3 relatórios com não conformidades em 10 relatórios 
+amostrados, podemos utilizar:
+
+```{r}
+prop.test(3, 10, conf.level = 0.95)
+```
+
+
+## Bootstrapp 
+
+Podemos obter uma estimativa por intervalo de confiança para a proporção de relatórios que apresentam uma não conformidade usando bootstrapp 
+não-paramétrico usando a função `np.boot` do pacote `nptest`:
+
+```{r}
+# pacote para bootstrapp
+library(nptest)
+
+# fixando a semente
+set.seed(15)
+
+# gerando 9999 reamostras bootstrapp e calculando 9999 estimativas da proporcao
+# de relatorios com nao conformidade
+ic_bootstrap <- np.boot(x, statistic = mean, R = 9999, level = 0.95)
+ic_bootstrap
+```
+
+
+## Testes de Hipóteses 
+
+Considere que desejamos testar se a proporção de relatórios financeiros que apresentam alguma não conformidade seja maior que 50% com base nos dados da 
+amostra da auditoria, usando um nível de significância de 5%. 
+
+Nesse o caso, o teste pode ser formulado como:
+
+$$
+H_0: p = 0.5 \\
+H_A: p > 0.5
+$$
+Podemos utilizar a função `binom.test` que fornece um teste exato para 
+esse caso:
+
+```{r}
+binom.test(3, 10, p = 0.5, conf.level = 0.95, alternative = "greater")
+```
+
+Como o valor-p do teste é maior que o nível de significância utilizado, 
+(0.83 > 0.05), os dados fornecem forte evidência para rejeitar a hipótese 
+nula de que a probabilidade de selecionar aleatoriamente um relatório 
+financeiro que apresente uma não conformidade seja maior que 50%. 
+
+A American Psychological Society define padrões para reportar os  
+resultados de diversos procedimentos estatísticos, no caso do 
+nosso exemplo, o resultado seria relatado como:
+
+"A proporção de relatórios financeiros com alguma não conformidade 
+não é significativamente diferente de 50% com base nos dados da amostra, $\chiˆ2(1,N = 10) = 0.9$, p = 0.34."
+
+
+
+## Poder do Teste e Tamanho da Amostra
+
+Digamos que suspeitamos que temos uma moeda que apresenta cara 75% das 
+vezes em que é lançada, em vez dos 50% esperados. 
+
+Podemos criar um experimento para testar se a moeda é viciada, ou não. 
+
+O experimento consistiria em lançar a moeda um certo número de vezes e 
+observar a proporção de caras. Em seguida, podemos conduzir um teste de 
+hipóteses sobre uma proporção para verificar se a proporção de caras é significativamente diferente do que esperaríamos com uma moeda honesta. 
+
+Ao final, se se o valor-p do teste for inferior ao nível de significância 
+definido (5% sendo o mais comum), concluiremos que o comportamento da 
+moeda é inconsistente com o de uma moeda honesta. 
+
+Coincidentemente, o teste pode ser formulado como:
+
+$$
+H_0: p = 0.5 \\
+H_A: p > 0.5
+$$
+Quantas vezes devemos lançar a moeda para ter uma alta probabilidade (poder), digamos 0,80, de rejeitar corretamente a hipótese nula de que p = 0,5, se nossa moeda for realmente viciada apresentando cara em 75% dos lançamentos?
+
+Vejamos como podemos determinar o tamanho da amostra com a função 
+`pwr.p.test` do pacote `pwr`: 
+
+```{r}
+library(pwr)
+
+pwr.p.test(h = ES.h(p1 = 0.75, p2 = 0.50),
+           sig.level = 0.05,
+           power = 0.80,
+           alternative = "greater")
+```
+
+Observe que, como queríamos determinar o tamanho da amostra (n), o deixamos 
+fora da função.
+
+O resultado nos diz que devemos jogar a moeda 22,55127 vezes, que arredondamos 
+para 23. Sempre arredonde as estimativas de tamanho da amostra para cima. 
+
+Ou seja, se desejamos testar se nossa moeda fornece cara 75% das vezes, 
+precisamos lançá-la pelo menos 23 vezes para ter 80% de chance de rejeitar corretamente a hipótese nula no nível de significância de 0,05.
+
+O nível de significância, erro tipo I ($\alpha$), é a probabilidade de rejeitar 
+a hipótese nula quando não deveríamos rejeitá-la. Isso significa detectar um 
+efeito onde não existe nenhum. Este é considerado o erro mais grave. A 
+tolerância para o erro Tipo I é geralmente de 0,05 ou menos.
+
+O erro tipo II ($\beta$), é a probabilidade de não rejeitar a hipótese nula 
+quando ela deveria ser rejeitada. Isso implica em não detectar um efeito 
+quando na verdade há. A tolerância para o erro Tipo II é geralmente de 0,20 ou menos. 
+
+Como o erro tipo II = 1 - Poder, Se desejarmos uma poder de 0,80, especificamos implicitamente uma tolerância de erro Tipo II de 0,20.
+
+O pacote `pwr` fornece uma função que nos permite ver como o poder muda à 
+medida que mudamos o tamanho da amostra. Se você tiver o pacote ggplot2 instalado, ele criará um gráfico usando ggplot.
+
+```{r}
+p.out <- pwr.p.test(h = ES.h(p1 = 0.75, p2 = 0.50),
+                    sig.level = 0.05,
+                    power = 0.80,
+                    alternative = "greater")
+plot(p.out)
+```
+
+
+
+### Tamanho do Efeito (effect size)
+
+O tamanho de efeito que desejamos detectar em uma comparação de proporções é inserido no argumento `h` da função `ES.h`. O rótulo h é devido a Cohen (1988). 
+
+A função `ES.h` é usada para calcular um tamanho de efeito sem unidade usando a transformação arco-seno.
+
+Cohen descreve o tamanho do efeito como “o grau em que a hipótese nula é falsa”. 
+Em nosso exemplo de lançamento de uma moeda, essa é a diferença entre 75% e 50%. Poderíamos dizer que o efeito foi de 25%, mas lembre-se que tivemos que 
+transformar a diferença absoluta em proporções para outra quantidade usando a função `ES.h`. Esta é uma parte crucial do uso correto do pacote pwr: você deve fornecer um tamanho de efeito na escala esperada. Fazer o contrário produzirá cálculos errados de tamanho de amostra e poder.
+
+Em caso de dúvida, podemos usar tamanhos de efeito convencionais. Estes são tamanhos de efeito pré-determinados para efeitos “small”, “medium” e “large”. 
+A função cohen.ES retorna um tamanho de efeito convencional para um determinado teste e tamanho. Por exemplo, o tamanho do efeito médio para o teste de 
+proporção é 0,2:
+
+```{r}
+cohen.ES(test = "p", size = "small")
+```
+
+Para mais detalhes acesse: [https://en.wikipedia.org/wiki/Cohen%27s_h](https://en.wikipedia.org/wiki/Cohen%27s_h)
+
+
+
+
+
+
+
+
+
+
+
+

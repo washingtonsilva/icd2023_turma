@@ -1,0 +1,277 @@
+---
+title: "Aula07 - Introdução à Ciência dos Dados"
+subtitle: "Um Tutorial sobre o Pacote ggplot2"
+author: "Seu Nome"
+date: "2023-05-04"
+output: html_document
+---
+
+
+```{r setup, echo = FALSE, include = FALSE, warning = TRUE, message = TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggthemes)
+library(palmerpenguins)
+```
+
+
+## Primeiros Passos e a Data Frame `penguins`
+
+
+```{r, echo=TRUE}
+penguins
+```
+
+- Visão Geral de `penguins`:
+
+```{r}
+dplyr::glimpse(penguins)
+```
+
+- Entre as variáveis temos:
+
+1. `species`: espécies de pinguim (Adelie, Chinstrap ou Gentoo)
+
+2. `flipper_length_mm`: Comprimento da nadadeira de um pinguim, em milímetros
+
+3. `body_mass_g`: Massa corporal de um pinguim, em gramas
+
+Para saber mais sobre penguins: 
+
+```{r, echo=TRUE, eval=FALSE}
+?palmerpenguins::penguins
+```
+
+- O objetivo principal do tutorial é reproduzir a seguinte visualização, 
+que exibe a relação entre os comprimentos das nadadeiras e as massas corporais desses pinguins, levando em consideração a espécie do pinguim.
+
+![](https://r4ds.hadley.nz/data-visualize_files/figure-html/unnamed-chunk-7-1.png){width=90%}
+
+- Vamos recriar esta visualização passo a passo.
+
+
+## Criando um ggplot
+
+```{r, echo=TRUE}
+ggplot(data = penguins)
+```
+
+
+```{r, echo=TRUE}
+ggplot(
+  data = penguins,
+  mapping = aes(x = flipper_length_mm, y = body_mass_g)
+)
+```
+
+
+```{r, echo=TRUE}
+ggplot(
+  data = penguins,
+  mapping = aes(x = flipper_length_mm, y = body_mass_g)
+) +
+  geom_point()
+```
+
+
+```{r}
+ggplot(
+  data = penguins,
+  mapping = aes(x = flipper_length_mm, y = body_mass_g, color = species)
+) +
+  geom_point()
+```
+
+
+```{r, warning=FALSE, echo=TRUE}
+ggplot(
+  data = penguins,
+  mapping = aes(x = flipper_length_mm, y = body_mass_g, color = species)
+) +
+  geom_point() +
+  geom_smooth(method = "lm")
+```
+
+
+```{r, echo=TRUE, warning=FALSE}
+ggplot(
+  data = penguins,
+  mapping = aes(x = flipper_length_mm, y = body_mass_g)
+) +
+  geom_point(mapping = aes(color = species)) +
+  geom_smooth(method = "lm")
+```
+
+- Voila! Temos algo que se parece muito com o nosso objetivo final, embora 
+ainda não seja perfeito. Ainda precisamos usar formas diferentes para cada 
+espécie de pinguins e melhorar os rótulos.
+
+- Geralmente não é uma boa ideia representar informações usando apenas cores 
+em um gráfico, pois as pessoas percebem as cores de forma diferente devido ao daltonismo ou outras diferenças de visão de cores. Portanto, além da cor, 
+também podemos mapear as espécies para a forma da estética:
+
+```{r}
+ggplot(
+  data = penguins,
+  mapping = aes(x = flipper_length_mm, y = body_mass_g)
+) +
+  geom_point(mapping = aes(color = species, shape = species)) +
+  geom_smooth(method = "lm")
+```
+
+- Note que a legenda é atualizada automaticamente para refletir as diferentes formas dos pontos.
+
+- E, finalmente, podemos melhorar os rótulos do gráfico usando a função 
+`labs()` em uma nova camada. 
+
+- Alguns dos argumentos para `labs()` podem ser autoexplicativos: `title` 
+adiciona um título e o `subtitle` adiciona um subtítulo ao gráfico. Outros 
+argumentos correspondem aos mapeamentos estéticos, x é o rótulo do eixo x, y 
+é o rótulo do eixo y e a cor e a forma definem o rótulo para a legenda. 
+
+Além disso, podemos melhorar a paleta de cores para ser adequada para 
+daltônicos com a função `scale_color_colorblind()` do pacote `ggthemes`:
+
+```{r, echo=TRUE, warning=FALSE}
+ggplot(
+  data = penguins,
+  mapping = aes(x = flipper_length_mm, y = body_mass_g)
+) +
+  geom_point(aes(color = species, shape = species)) +
+  geom_smooth(method = "lm") +
+  labs(
+    title = "Body mass and flipper length",
+    subtitle = "Dimensions for Adelie, Chinstrap, and Gentoo Penguins",
+    x = "Flipper length (mm)", y = "Body mass (g)",
+    color = "Species", shape = "Species"
+  ) +
+  scale_color_colorblind()
+```
+
+
+## Duas Variáveis Categóricas
+
+Usando frequências absolutas:
+
+```{r}
+ggplot(penguins, aes(x = island, fill = species)) +
+  geom_bar()
+```
+
+usando frequências relativas:
+
+```{r}
+ggplot(penguins, aes(x = island, fill = species)) +
+  geom_bar(position = "fill")
+```
+
+
+## Facets
+
+`facet_wrap()`, divide um gráfico em subgráficos, cada um exibindo um 
+subconjunto dos dados com base em uma variável categórica:
+
+
+```{r}
+ggplot(penguins, aes(x = flipper_length_mm, y = body_mass_g)) + 
+  geom_point() + 
+  facet_wrap(~ species)
+```
+
+
+`facet_wrap()` é particularmente útil para acrescentar mais variáveis 
+categóricas em uma visualização:
+
+
+```{r}
+ggplot(penguins, aes(x = flipper_length_mm, y = body_mass_g)) +
+  geom_point(aes(color = species, shape = species)) +
+  facet_wrap(~island)
+```
+
+
+
+## Simplificando a sintáxe do ggplot2
+
+
+```{r, echo=TRUE, eval=FALSE}
+ggplot(
+  data = penguins,
+  mapping = aes(x = flipper_length_mm, y = body_mass_g)
+) +
+  geom_point()
+```
+.
+
+- Reescrevendo o gráfico anterior de forma mais concisa:
+
+```{r, echo=TRUE, warning=FALSE}
+ggplot(penguins, aes(x = flipper_length_mm, y = body_mass_g)) + 
+  geom_point()
+```
+
+- Além disso, já conhecemos o operador pipe `|>`, que permite criar 
+gráficos com:
+
+```{r, echo=TRUE, warning=FALSE}
+penguins |> 
+  ggplot(aes(x = flipper_length_mm, y = body_mass_g)) + 
+  geom_point()
+```
+
+
+
+## Salvando os gráficos
+
+- Depois de fazer um gráfico, podemos salvá-lo como uma imagem que porerá ser  usada em outro trabalho. 
+
+- `ggsave()` é a função do gggplot2 para isso, que salvará o gráfico mais recentemente criado no disco:
+
+```{r, echo=TRUE, warning=FALSE}
+ggplot(penguins, aes(x = flipper_length_mm, y = body_mass_g)) +
+  geom_point()
+ggsave(filename = "penguin-plot.png")
+```
+
+- Esse código irá salvar o gráfico em sua pasta ou diretório de trabalho:
+
+```{r, echo=TRUE}
+getwd()
+```
+
+- Se não especificamos a largura e a altura, elas serão retiradas das dimensões do dispositivo de plotagem atual. 
+
+- Para termos um código reproduzível, é importante especificá-las ou, 
+pelo menos, especificar a escala:
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+fig01 <- ggplot(
+  data = penguins,
+  mapping = aes(x = flipper_length_mm, y = body_mass_g)
+) +
+  geom_point(aes(color = species, shape = species)) +
+  geom_smooth(method = "lm") +
+  labs(
+    title = "Body mass and flipper length",
+    subtitle = "Dimensions for Adelie, Chinstrap, and Gentoo Penguins",
+    x = "Flipper length (mm)", y = "Body mass (g)",
+    color = "Species", shape = "Species"
+  ) +
+  scale_color_colorblind()
+
+# salva a imagen na pasta figs
+f1 <- 'figs/penguin-plot.png'
+ggsave(filename = f1,
+       plot = fig01,
+       width = 13,
+       height = 9,
+       dpi = 400,
+       units = "in")
+```
+
+- Geralmente, no entanto, é recomendável escrever seus relatórios finais 
+usando `R Markdown` ou o sistema `Quarto`, que é a nova geração.
+
+- `R Markdown`, `Quarto` e `Jupyter Notebooks` são sistemas de autoria reproduzíveis que permitem intercalar código, prosa e incluir automaticamente 
+gráficos, tabelas, entre outros resultados de análise e modelagem de dados 
+no produto final.

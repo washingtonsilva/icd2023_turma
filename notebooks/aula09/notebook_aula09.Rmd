@@ -1,0 +1,540 @@
+---
+title: "Aula09 - Introdução à Ciência dos Dados"
+author: "Seu Nome"
+date: "2023-05-25"
+output: html_document
+---
+
+
+```{r setup, echo = FALSE, include = FALSE, warning = TRUE, message = TRUE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(tidyverse)
+library(correlationfunnel)
+library(GGally)
+library(xts)
+library(plotly)
+library(plm)
+```
+
+
+## Armazenamento de números em computadores
+
+
+Qual seria o resultado da seguinte subtração no sistema decimal? 
+
+```{r, echo=TRUE}
+(0.3 - 0.2) - 0.1
+```
+
+Alguma ideia sobre a causa do resultado?
+
+**Ponto Flutuante Binário**
+
+A representação em ponto flutante é uma variação binária (base-dois) da notação científica, sendo esta a representação utilizada por computadores para 
+armazenar números.
+
+Por exemplo, podemos escrever o número $0,0006926$ com quatro dígitos significativos em notação científica como $6,926 × 10^{-4}$. Esta representação pode representar qualquer valor entre $0,00069255$ e $0,00069265$.
+
+As representações em ponto flutuante em computadores são semelhantes, exceto 
+que uma potência de 2 é usada em vez de uma potência de 10, e a fração 
+é escrita em notação binária.
+
+O número $0,0006926$ é escrito como $1,0112 \times 2^{-11}$ se a precisão de quatro dígitos binários for usada. $1,0112$ representa a *mantissa* e $11$ o 
+*expoente*.
+
+No entanto, $6,926 × 10^{−4}$ e $1,0112 × 2^{−11}$ não são idênticos. 
+
+Quatro dígitos binários fornecem menos precisão que quatro dígitos decimais. 
+Uma faixa de valores entre 0,000641 a 0,000702 obteria a mesma representação 
+com precisão de quatro dígitos binários. 
+
+De fato, $6,926 × 10^{−4}$ não pode ser representado exatamente em notação binária em um número finito de dígitos. 
+
+O problema é semelhante a tentar representar $1/3$ como um decimal: $0,3333$ é apenas uma aproximação. 
+
+`.Machine` é uma variável que contém informações sobre as características numéricas da máquina em que a linguagem R está sendo executada, como o maior `double` ou inteiro e a precisão da máquina.
+
+```{r, echo=TRUE}
+.Machine
+```
+
+- A constante `double.eps` representa o menor número positivo que pode ser representado no tipo `double` antes que a precisão seja perdida, é também 
+conhecida como *machine epsilon* 
+
+```{r, echo=TRUE}
+abs((0.3 - 0.2) - 0.1) < .Machine$double.eps
+```
+
+- Podemos ver a precisão dupla (daí o uso de `double`) da linguagem R (e náo apenas da linguagem R) é de 53 bits (dígitos binários), o que equivale a \cerca de 15 ou 16 dígitos decimais.
+
+- Assim, a aritmética com números inteiros será exata para valores entre $−(2^{53} − 1)$ e $2^{53} − 1$  (aproximadamente $−10^{16}$ a $10^{16}$), mas assim que começamos a usar números fora desse intervalo, ou frações, podemos perder precisão devido a erros de arredondamento. 
+
+- Por exemplo, $1.1$ não possui uma expansão binária finita, portanto, 
+em precisão dupla (double precision), sua expansão binária é arredondada para $1,00011001100\ldots001$ , com um erro de aproximadamente $2^{-53}$ .
+
+- O erro de arredondamento tende a se acumular na maioria dos cálculos, então geralmente uma longa série de cálculos resultará em erros maiores do que uma curta.
+
+- Algumas operações são particularmente propensas a erros de arredondamento: por exemplo, subtração de dois números quase iguais, ou (equivalentemente) 
+adição de dois números com quase a mesma magnitude, mas sinais opostos. 
+
+- Isso se ocorre por que os bits principais nas expansões binárias de números quase iguais serão correspondentes, assim serão cancelados na subtração, e o resultado vai depender do que está armazenado nos bits posteriores.
+
+**Exemplo:**
+
+Considere a seguinte fórmula padrão do estimador da variância amostral de 
+uma amostra $x_1,\ldots,x_n$:
+
+$$
+s^2 = \frac{1}{n-1} \sum_{i=1}^n (x_i - \bar{x})^2
+$$
+
+sendo $\bar{x} = 1/n\sum x_i$. Como sabemos, em R, $s^2$ é obtido por `var()` e 
+$\bar{x}$ por `mean()`. Por exemplo
+
+```{r, echo=TRUE}
+x <- 1:11
+mean(x)
+var(x)
+sum((x - mean(x))^2)/10
+```
+
+Como este estimador requer o cálculo de $\bar{x}$ primeiro e a soma de
+desvios quadráticos em seguinda, isto requer que todos os valores $x_i$ sejam mantidos na memória.
+
+Não muito tempo atrás, a memória era tão cara que era vantajoso
+reescrever a fórmula como:
+
+$$
+s^2 = \frac{1}{n-1} \sum_{i=1}^n (x_i^2 - n\bar{x}^2)
+$$
+
+Este estimador é conhecido como "*one-pass formula*" (fórmula de passagem 
+única) por que avaliamos cada valor $x_i$ apenas uma vez, e acumulamos as 
+somas de $x_i$ e de $x_i^2$. Ele fornece a resposta correta em nosso exemplo:
+
+```{r, echo=TRUE}
+(sum(x^2) - 11 * mean(x)^2) / 10
+```
+
+Entretanto, vejo o que ocorre se um grande valor `A` a cada $x_i$. A soma 
+$\sum_{i=1}^n x_i^2$ aumenta em aproximadamente $nA^2$, assim como $n\bar{x}^2$, ou seja, fazemos a subtração de números muito próximos.
+
+Isso não altera a variância, mas fornece as condições para uma “perda catastrófica de precisão” quando calculamos a diferença:
+
+```{r, echo=TRUE}
+A <- 1.e10
+x <- 1:11 + A
+var(x)
+(sum(x^2) - 11*mean(x)^2) / 10
+```
+
+
+# Tipos de Dados Tradicionais em Finanças
+
+## Dados em **seção cruzada ou transversal (cross-section)**
+
+- Dados em **secção cruzada ou transversal** (*cross-section*): 
+
+- as observações coletadas em um determinado ponto no tempo sobre diferentes       unidades de observação. Cada observação representa uma única unidade de         observação, como indivíduos, empresas ou países, e fornece informações          sobre várias variáveis dessa unidade em um determinado momento. A ordem         das observações não é relevante.
+
+- Um conjunto de dados coletado pela amostragem de uma população em um            determinado ponto no tempo.
+
+- Exemplo: dados sobre diversas variáveis de 200 empresas para o ano de 
+2009.
+      
+### Exemplo:
+
+O conjunto de dados `Hmda` é um conjunto de dados coletados em Boston/EUA, 
+especificamente, é uma seção cruzada entre 1997-1998.
+
+O Home Mortgage Disclosure Act foi promulgado para monitorar o acesso de minorias de baixa renda ao mercado de hipotecas. Os dados 
+recolhidos para esse objetivo mostraram que as minorias têm duas vezes mais chances de ter uma hipoteca negada do que os brancos. No entanto, as variáveis correlacionadas com raça e capacidade de crédito foram omitidas desses dados, tornando impossível qualquer conclusão sobre o papel da raça nos empréstimos hipotecários. O Federal Reserve Bank de Boston coletou variáveis adicionais importantes para a decisão de empréstimo hipotecário e descobriu que a raça continuou a desempenhar um papel importante, embora significativamente diminuído, na decisão de conceder um
+hipoteca.
+
+**Dicionário dos Dados**
+
+- número de observações: 2381 
+
+- observação: indiíviduos
+
+- fonte: Federal Reserve Bank of Boston
+
+`dir`: razão entre o valor das prestações e a renda total
+
+`hir`: razão entre despesas com moradia e renda
+
+`lvr`: razão entre o tamanho do empréstimo e o valor estimado da propriedade
+
+`ccs`: pontuação de crédito ao consumidor de 1 a 6 (um valor baixo sendo uma boa pontuação)
+
+`mcs`: pontuação de crédito hipotecário de 1 a 4 (um valor baixo sendo uma boa pontuação)
+
+`pbcr`: histórico de crédito público ruim?
+
+`dmi`: seguro hipotecário negado?
+
+`self`: autônomo?
+
+`single`: o requerente é solteiro?
+
+`uria`: taxa de desemprego de Massachusetts em 1989 na indústria do requerente
+
+`condominium`: a unidade é um condomínio? 
+
+`black`: o requerente é negro?
+
+`deny`: pedido de hipoteca negado?
+
+
+```{r, echo=TRUE}
+data(Hdma, package = "Ecdat")
+head(Hdma)
+```
+
+Uma operação comum qunado a variável respota é binária, é transformar 
+sim e não para 1 e o, respectivamente:
+
+```{r}
+hdma <- Hdma |> 
+          mutate(deny_int = as.integer(ifelse(deny == "yes", 1, 0))) |>
+          glimpse()
+```
+
+
+Análise Exploratória dos Dados
+
+```{r}
+summary(hdma)
+```
+
+Usando um spineplot:
+
+```{r}
+spineplot(deny ~ dir, data = hdma)
+```
+
+Spine plots podem ser vistos como uma generalização de gráficos de barras empilhadas e também de histogramas.
+
+Podemo verificar que a obtenção de uma negativa aumenta à medida que a razão prestaçaõ/renda aumenta e que a relação não parece ser linear.
+
+Obs. Note que a variável resposta (à esquerda de `~`) precisa ser um fator e que a função categoriza a variável numérica `dir` que representa a razão prestaçaõ/renda.
+
+
+## Dados em **seções cruzadas combinadas** (*pooled cross-section*)
+
+- Uma configuração de dados em que seções cruzadas independentes,     
+geralmente coletadas em diferentes pontos do tempo, são combinadas para         produzir um único conjunto de dados.
+
+- Exemplo: dados sobre diversas variáveis de 200 empresas diferentes para 
+os anos de 2009 e 2010.
+
+
+### Exemplo
+
+Uma seção cruzada utilizada para precificar casas com 321 observações sobre 19 variáveis
+
+`year`: 1978, 1981
+
+`age`: idadde da casa
+
+`nbh`: vizinhança, 1-6
+
+`cbd`: dist. para cento. ônibus. dstrct, ft.
+
+`inst`: dist. para interestadual, ft.
+
+`price`: preço de venda
+
+`rooms`: número de quartos na casa
+
+`area`: metragem quadrada da casa
+
+`land`: metragem quadrada do terreno
+
+`baths`: número de banheiros
+
+`dist`: dist. de casa para incin., ft
+
+`y81`: = 1 se `year` = 1981
+
+
+```{r, echo=TRUE}
+data(hprice3, package = "wooldridge")
+
+hprice3_slice <- dplyr::slice(hprice3, 177:182) |> 
+                  dplyr::select(year, age, agesq, nbh, cbd, inst, linst, price, 
+                                rooms, area, land, baths, dist) |> 
+                            data.frame()
+
+head(hprice3_slice)
+```
+
+
+Análise Exploratória dos Dados
+
+Utilizando o pacote `correlationfunnel` para identificar as variáveis mais 
+correlacionadas com `price`:
+
+```{r}
+hprice3_slice |>
+    glimpse() |>
+    select(-year) |>
+    correlate(target = price) |>
+    plot_correlation_funnel()
+```
+
+Utilizando o pacote `GGally` para a mesma finalidade:
+
+```{r, out.width="100%"}
+ggpairs(hprice3_slice, columns = c("price", "inst", "baths", "nbh"))
+```
+
+## Dados em **séries temporais**
+
+- são dados coletadas em ao longo do tempo (em geral, em intervalos  
+regulares) sobre uma ou mais variáveis de uma unidade.
+
+- Exemplo: Lucro líquido, dívida, etc para uma empresa ao longo de 
+25 anos (ou trimestres, meses, dias...).
+
+### Exemplo
+
+Dados diários sobre o preço de fechamento das 30 ações que compõe o índice 
+Dow Jones.
+
+```{r, echo=TRUE}
+data(DowJones30, package = "fBasics")
+head(DowJones30, 5)
+```
+
+
+### Importando e Estruturando Dados de Séries Temporais
+
+
+#### Caso 1: Arquivo de Dados náo Contém Datas
+
+O arquivo `unemployment.csv` contém 63 dados mensais sobre a taxa de desemprego civil dos EUA como porcentagem da força de trabalho para os anos 2012-2017, obtidos da base da dados do Federal Reserve Bank of Saint Louis.
+
+1. Importe os dados utlizando a função read_csv do pacote `readr` e nomeie o objeto como `dados`. 
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+path1 <- "dados/unemployment.csv"
+dados <- readr::read_csv(path1)
+```
+
+
+2. Transforme `dados` para a classe `ts` indicando que os dados são mensais e o primeiro período é janeiro de 2012 e nomeie o objeto como `desemprego_ts`.
+
+```{r, echo=TRUE}
+desemprego_ts <- ts(dados, start = c(2012, 1), frequency = 12)
+desemprego_ts
+```
+
+3. Faça um gráfico do objeto `desemprego_ts`
+
+```{r, echo=TRUE}
+plot(desemprego_ts, col = "blue")
+grid()
+```
+
+
+3. Utilizando a função `as.xts` do pacote `xts`, converta o objeto 
+`desemprego_ts` para um objeto da classe `xts` e nomeie este objeto como `desemprego_xts.` Faça um gráfico do objeto `desemprego_xts` com plot(desemprego_xts). 
+
+```{r, echo=TRUE}
+desemprego_xts <- as.xts(desemprego_ts)
+plot(desemprego_xts)
+```
+
+
+5. Observando o gráfico da série temporal, descreva se existem padrões relevantes.
+
+A inspeção visual do gráfico da série indica uma clara tendência de queda da taxa de desemprego. Além disso, vê-se um padrão sazonal mas irregular.
+
+#### Caso 2: Arquivo de Dados Contém Datas
+
+O arquivo `ipeadata[06-04-2021-04-16].csv`, obtido no site [ipeadata](http://www.ipeadata.gov.br/Default.aspx) contém dados 
+diários sobre a taxa de câmbio real/dólar, sendo que a primeira 
+coluna contém os dias. 
+
+Podemos definir que a primeira coluna são dias usando o argumento 
+`col_type()` da funcào `read_csv2` do pacote `readr`
+
+
+1. Importe o arquivo `ipeadata[06-04-2021-04-16].csv` e nomeie o objeto 
+importado como `cambio_csv`
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+file_csv <- 'dados/ipeadata[06-04-2021-04-16].csv'
+
+cambio_csv <- read_csv2(file_csv,
+                    na = c(" "),
+                    skip = 1,
+                    locale = locale(decimal_mark = ","),
+                    col_names = c("dia", "real_dolar"),
+                    col_types = cols(
+                    dia = col_date(format = "%d/%m/%Y"),
+                    real_dolar = col_double())
+                    )
+
+dplyr::glimpse(cambio_csv)
+```
+
+
+2. Elimine a coluna `X3` e retire os dados faltantes (`NA`):
+
+```{r}
+cambio_csv <- cambio_csv %>% select(dia, real_dolar) %>% drop_na()
+summary(cambio_csv)
+```
+
+
+3. Gráfico de linha usando o `ggplot2`
+
+```{r, echo=TRUE}
+cambio_csv %>%
+  ggplot(aes(x = dia, y = real_dolar)) +
+  geom_line(color = "#69b3a2") +
+  labs(
+    title = "Taxa de Câmbio diária R$/US$",
+    subtitle = "comercial - compra - média",
+    caption = "Fonte: ipeadata - Bacen/SGS",
+    x = "dia",
+    y = "Taxa de Câmbio (R$/US$)"
+  ) +
+  theme_minimal()
+```
+
+
+4. Gráfico interativo usando o pacote `plotly`
+
+```{r}
+interativo <- cambio_csv %>%
+  ggplot(aes(x = dia, y = real_dolar)) +
+  geom_area(fill = "#69b3a2", alpha = 0.5) +
+  geom_line(color = "#69b3a2") +
+  xlab("dia") +
+  ylab("Taxa de Câmbio Diária (R$/US$)") +
+  theme_minimal()
+
+ggplotly(interativo)
+```
+
+
+
+## Dados em **painel** (longitudinais)
+
+- Estrutura de dados construída a partir de seções cruzadas repetidas ao longo do tempo. 
+
+- Com um painel balanceado, as mesmas unidades de observação aparecem em cada período de tempo. Com um painel desbalanceado, algumas unidades não aparecem em cada período de tempo, muitas vezes devido ao atrito.
+
+- Exemplo: dados sobre diversas variáveis de 50 empresas durante 5 anos     
+  (“micropainel”), ou sobre 12 países durante 25 anos (“macropainel”).
+  
+  
+### Exemplo 1
+
+Os dados de Grunfeld (1958 ) compreendeem observações referentes a $11$ grandes empresas estadunidenses para os anos de 1935-1954 em relação a 4 variáveis: 
+
+- investimento bruto real (`invest`), 
+- valor real da empresa (`value`) e, 
+- valor real do estoque de capital (`capital`) 
+- ano (`year`)
+
+Originalmente empregados em um estudo sobre os determinantes do investimento 
+corporativo em uma tese de doutorado da Universidade de Chicago, esses dados 
+têm sido um clássico dos livros didáticos desde a década de 1970. 
+
+
+```{r, echo=TRUE}
+data(Grunfeld, package = "AER")
+head(Grunfeld, 60)
+```
+
+Podemos utilizar a função a função `plotmeans` do pacote `gplots` para 
+explorar graficamente os dados de Grunfeld:
+
+```{r, echo=TRUE, warning=FALSE}
+gplots::plotmeans(invest ~ firm, main="Heterogeineidade entre empresas", 
+                  n.label = FALSE, data = Grunfeld)
+```
+
+A inspeção do gráfico mostra que aparentemente há uma heterogeneidade 
+substancial do investimento médio entre as empresas, entretanto, é necessário 
+um teste formal para verificar o padrão observado.
+
+```{r, echo=TRUE, warning=FALSE}
+gplots::plotmeans(invest ~ year, main="Heterogeineidade entre os anos", 
+                  n.label = FALSE, data = Grunfeld)
+```
+
+O gráfico indica que aparentemente não há uma heterogeneidade substancial 
+do investimento médio das empresas entre os anos até 1950, quando 
+se verifica um aumento da variabilidade, mas, novamente, é 
+necessário um teste formal para verificar o padrão observado.
+
+
+### Exemplo 2: Importanto e Estruturando Dados em Painel
+
+O arquivo `Data_AgricultureClimate.csv` contém um painel envolvendo 568 municípios paulistas com informações anuais (1990 a 2014) para o valor da produção agrícola (em R$), área agrícola, temperatura média e precipitação 
+total no ano.
+
+Especificamente, o arquivo contém as seguintes variáveis:
+
+- `ano`: 1990 a 2014
+- `munic`: código do município no IBGE
+- `vtotal`: valor total da produçao agropecuária (R$)
+- `areatotal`: área agrícola no município
+- `tempano`: temperatura média no ano
+- `precano`: precipitacao total no ano
+
+Estes dados foram utilizados no artigo de Maia at. al. (2018). Os autores  
+estimaram variações para o seguinte modelo para as variáveis em estudo:
+
+$$
+log(vtotal) = log(areatotal) + tempano + precano + erro
+$$
+
+1. Importe o arquivo `Data_AgricultureClimate.csv` usando a função `read_csv` 
+do pacote `readr` e salve o objeto com o nome `agri`. Visualize a estrutura 
+dos dados com a função `glimpse()` do pacote `dplyr` e exiba estatísticas 
+descritivas básicas do objeto `agri` usando a função interna `summary()`
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+painel <- "dados/Data_AgricultureClimate.csv"
+agri <- read_csv(painel)
+glimpse(agri)
+summary(agri)
+```
+
+
+2. Declare o conjunto de dados como dados em painel usando a função `pdata.frame()` do pacote `plm`, nomeie o objeto criado como `agri_pd` e 
+exiba a estrutura dos dados em painel usando a função `pdim`, também 
+do pacote plm:
+
+```{r, echo=TRUE}
+agri_pd <-  pdata.frame(agri, index = c("munic","ano"))
+pdim(agri_pd)
+```
+
+3. Exiba as primeiras 24 obeservações do objeto `agri_pd`
+
+```{r, echo=TRUE}
+head(agri_pd, 48)
+```
+
+
+```{r, echo=TRUE, warning=FALSE, out.width = "90%"}
+gplots::plotmeans(vtotal ~ ano, main = "Heterogeineidade entre municipios", 
+                  n.label = FALSE,
+                  data = agri_pd)
+```
+
+
+
+
+
+
+
+
+

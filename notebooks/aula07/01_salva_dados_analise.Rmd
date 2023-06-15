@@ -1,0 +1,271 @@
+---
+title: "Aula07 - Introdução à Ciência dos Dados"
+subtitle: "Salvando dados para análise no formato .rds"
+author: "Seu Nome"
+date: "2023-05-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# configuracoes globais
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, 
+                      digits = 3, scipen = 999)
+
+# pacotes utilizados
+library(readr)
+library(readxl)
+library(dplyr)
+library(skimr)
+```
+
+
+## Parte 1: Importando os arquivos de dados
+
+```{r}
+carteira <- readr::read_rds("dados/carteira.rds")
+risco <- readxl::read_xlsx('dados/risco.xlsx')
+cotacoes <- readr::read_rds('dados/cotacoes.rds')
+```
+
+Visão geral da estrutura dos dados importados:
+
+```{r}
+dplyr::glimpse(carteira)
+```
+
+
+```{r}
+dplyr::glimpse(risco)
+```
+
+
+Verificando a classe dos objetos:
+
+```{r}
+class(carteira)
+```
+
+```{r}
+class(risco)
+```
+
+
+## Parte 2: Preparando os dados para análise
+
+Retornos da carteira: retirando dados faltantes
+
+```{r, echo=TRUE}
+carteira_analise <- na.omit(carteira)
+summary(carteira_analise)
+```
+
+Criando uma estrutura de dados `longer`
+
+```{r, echo=TRUE}
+carteira_analise_longer <- carteira_analise %>% 
+      tidyr::pivot_longer(cols = c('VALE', 'WEGE3.SA', 'PETR4.SA'), 
+                          names_to = "acoes", 
+                          values_to = "retornos")
+
+head(carteira_analise_longer)
+```
+
+Risco: Definindo classes apropriadas para as questões:
+
+```{r, echo=TRUE}
+risco_analise <- risco %>%
+  transmute(
+    q1_1 = factor(
+      q1_1,
+      levels = c(
+        "20-30 anos",
+        "31-40 anos",
+        "41-50 anos",
+        "51-60 anos",
+        "Mais de 60 anos"
+      ),
+      ordered = TRUE
+    ),
+    q1_2 = factor(q1_2),
+    q1_3 = factor(q1_3),
+    q1_4 = factor(q1_4),
+    q1_5 = factor(
+      q1_5,
+      levels =  c(
+        "Ensino fundamental",
+        "Ensino médio",
+        "Ensino superior",
+        "Especialização",
+        "Mestrado",
+        "Doutorado"
+      ),
+      ordered = TRUE
+    ),
+    q1_6 = factor(
+      q1_6,
+      levels = c(
+        "Até 5 anos",
+        "6-10 anos",
+        "11-15 anos",
+        "16-20 anos",
+        "Mais de 20 anos"
+      ),
+      ordered = TRUE
+    ),
+    q1_7 = factor(
+      q1_7,
+      levels = c(
+        "Até 5 anos",
+        "6-10 anos",
+        "11-15 anos",
+        "16-20 anos",
+        "Mais de 20 anos"
+      ),
+      ordered = TRUE
+    ),
+    q1_8 = factor(q1_8)
+  )
+```
+
+
+Verificando o novo objeto `risco_analise``:
+
+```{r, echo=TRUE}
+skimr::skim(risco_analise)
+```
+
+
+## Linguagem R e o Sistema Operacional: Arquivos e Pastas
+
+Em um ambiente Windows, a linguagem R pode ser uma maneira razoavelmente 
+eficaz de automatizar a manipulação de arquivos e pastas (diretórios).
+
+A linguagem R possui diversas funções para obter informações do sistema 
+operacional e automatizar o gerenciamento de arquivos e pastas. 
+
+Entretanto, os usuários de sistemas baseados em Unix geralmente já possuem 
+maneiras mais elegantes de lidar com esses tarefas a partir da linha de 
+comando.
+
+Vejamos algumas funções da linguagem R que permitem realizar operaçòes 
+diretamente no sistema operacional Windows:
+
+1. `getwd()`
+
+Retorna a pasta de trabalho atual:
+
+```{r}
+getwd()
+```
+
+
+3. `Sys.Date()`, `Sys.time()` e `Sys.timezone()`
+
+`Sys.time` e `Sys.Date` retornam a ideia do sistema da data atual 
+com e sem hora:
+
+```{r}
+Sys.Date()
+```
+
+```{r}
+Sys.time()
+```
+
+Sys.timezone retorna o nome do fuso horário atual:
+
+```{r}
+Sys.timezone()
+```
+
+
+4. `ls()` e `list.files()`
+
+`ls` retorna os nomes dos objetos ativos no ambiente atual:
+
+```{r}
+ls()
+```
+
+
+```{r}
+y <- 10
+ls()
+```
+
+
+```{r}
+list.files()
+```
+
+
+4. `file.exists()`, `file.info()` e `file.create()`
+
+```{r}
+file.exists("02_tutorial_ggplot2.Rmd")
+```
+
+```{r}
+file.info("02_tutorial_ggplot2.Rmd")
+```
+
+```{r}
+file.create("README.txt")
+```
+
+```{r}
+file.remove("README.txt")
+```
+
+
+5. `dir.exist()` e `dir.create()`
+
+```{r}
+dir.exists("dados_analise")
+```
+
+`dir.creates() `: cria uma pasta, e apenas um pasta por vez.
+
+```{r}
+dir.create("dados_analise")
+dir.create("figs")
+```
+
+
+```{r}
+dir.exists("dados_analise")
+dir.exists("figs")
+```
+
+
+## Salvando os dados para análise
+
+  Após preparar os dados para análise, é útil salvá-los em um formato 
+em que não seja necessário refazer as operações de preparação, o 
+formato `.rds` é uma opção apropriada para isso. 
+
+```{r}
+file01 <- 'dados_analise/carteira_analise.rds'
+readr::read_rds(carteira_analise, file01)
+```
+
+
+```{r}
+file02 <- 'dados_analise/carteira_analise_longer.rds'
+write_rds(carteira_analise_longer, file02)
+```
+
+
+```{r}
+file03 <- 'dados_analise/risco_analise.rds'
+write_rds(risco_analise, file03)
+```
+
+
+## Importando os arquivos .rds
+
+```{r}
+read_rds('dados_analise/carteira_analise.rds')
+```
+
+
