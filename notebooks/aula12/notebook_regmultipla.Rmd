@@ -1,0 +1,225 @@
+---
+title: "Aula 10 - Introdução à Ciência dos Dados"
+subtitlte: "Modelos de Regressão"
+author: "Seu Nome"
+date: "2023-05-25"
+output: html_document
+---
+
+<style type="text/css">
+  body{
+  font-size: 12pt;
+  text-align: justify
+      }
+</style>
+
+
+# Regressão Linear Múltipla em R
+
+## Aplicação: Modelos de Precificação e Regressão Hedônicos
+
+Modelos de precificação hedônica tratam um bem comercializado, geralmente uma 
+casa, como uma soma de bens individuais (características ou atributos) que não 
+podem ser vendidos separadamente no mercado. O principal objetivo de um 
+modelo de precificação hedônico é estimar a contribuição de tais 
+características ou atributos para o preço da casa. É por isso que eles se 
+tornaram uma estratégia central para estimar os preços implícitos de bens não comercializáveis.
+
+A regressão hedônica é um método de preferência revelada para 
+estimar o valor monetário das características de um bem. Decompõe o bem ou 
+item pesquisado em suas características e obtém estimativas da contribuição 
+de valor monetário de cada característica. Os modelos de regressão hedônica são 
+mais comumente estimados por meio de análise de regressão, onde o preço geral 
+do bem é tratado como a variável dependente e as características do bem se 
+tornam as variáveis preditoras. 
+
+Os modelos hedônicos são comumente usados na avaliação imobiliária, pois as 
+casas têm uma variedade de características facilmente mensuráveis (como o 
+número de quartos, tamanho total ou distância de certas comodidades) que as 
+tornam mais passíveis de modelos de regressão hedônica do que a maioria dos 
+outros bens.
+
+Neste tipo de aplicação, estamos geralmente mais interessados na acurácia 
+preditiva do modelo, ou seja, desejamos um modelo capaz de prever com boa 
+acurária o valor de um imóvel, dadas suas caracaterísticas e não 
+temos interesse relevante nas estimativas pontuais dos parâmetros do 
+modelo de regressão.
+
+
+## 1. Setup
+
+```{r setup, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(digits = 5, scipen = 9999, warning = FALSE, message = FALSE)
+
+# pacotes utilizados
+library(tidyverse)
+library(tidymodels)
+library(MASS)
+library(Hmisc)
+```
+
+
+## 2. O metapacote `tidymodels`
+
+`tidymodels` é um metapacote que contém uma coleção de pacotes para modelagem e aprendizado de máquina usando os princípios do `tidyverse`. Todos os pacotes 
+dessa família são projetados para serem consistentes, modulares e para suportar boas práticas de modelagem.
+
+
+## 3. Dados
+
+O conjunto de dados `?MASS::Boston` refere-se ao conjunto de dados de preços de imóveis em Boston, e contém informações sobre 506 imóveis e sobre 14 características desses imóveis.
+
+Vejamos os nomes das variáveis contidas no objeto:
+
+```{r}
+data(Boston)
+names(Boston)
+```
+
+E a classe/tipo de cada uma das variáveis:
+
+```{r}
+glimpse(Boston)
+```
+
+Estatística descritivas:
+
+```{r}
+summary(Boston)
+```
+
+
+## 4. Preparação dos Dados para Treinamento e Teste
+
+A função `initial_split()` foi criada especialmente para separar o conjunto 
+de dados em um conjunto de treinamento e teste. Por padrão, ele armazena 3/4 
+dos dados para treinamento e o restante para teste. 
+
+Isso pode ser alterado usando o argumento `prop`. Esta função gera um objeto 
+`rplit`, não uma `data.frame` ou `tibble`. A saída mostra a contagem de 
+linhas para treinamento, teste e total:
+
+```{r}
+set.seed(4595)
+boston_split <- initial_split(Boston, strata = "medv", prop = 0.75)
+boston_split
+
+# datos para treinamento
+boston_train <- training(boston_split)
+
+# dados para teste
+boston_test  <- testing(boston_split)
+```
+
+
+Estamos prontos para treinar um modelo ajustando um algoritmo de regressão 
+adequado aos dados de treinamento.
+
+
+## 5. Treinamento do Modelo de Regressão
+
+
+```{r}
+## define a especificao de um modelo de reg. linear
+mod_reg_linear <-
+  linear_reg() |> 
+  set_mode("regression") |> 
+  set_engine("lm")
+
+## treinando um modelo de regressao linear
+reg_fit <- mod_reg_linear |>
+    fit(medv ~ ., data = boston_train)
+```
+
+
+
+## 6. Avaliando a Capacidade Preditiva do Modelo
+
+Agora, podemos testar o modelo treinado (ajustado aos dados de treinamento) nos dados de teste, que não foram utilizados na fase de treinamento. 
+
+Usando a função `predict()` podemos obter previsões para os dados de teste a partir do modelo estimado com os dados para treinamento. 
+
+O código a seguir, além de obter as previsões para os dados de teste, 
+funde as previsões com os dados de teste:
+
+
+```{r}
+resultado_reglin <- reg_fit |>
+  predict(boston_test) |>
+  bind_cols(boston_test) |>
+  rename(.pred_lm = .pred)
+
+resultado_reglin |> dplyr::select(medv, .pred_lm)
+
+head(resultado_reglin, 20)
+```
+
+
+```{r}
+resultado_reglin |> metrics(truth = medv, estimate = .pred_lm)
+```
+
+Visualizando os dados de teste e as previsões do modelo de regressão linear:
+
+```{r}
+mod_reg <- resultado_reglin %>% mutate(x = 1:128)
+
+ggplot(mod_reg, aes(x = x)) +
+  geom_line(aes(y = medv), color = "black") +
+  geom_line(aes(y = .pred_lm), color = "steelblue", linetype = "twodash")
+```
+
+Você consegue observar os dados de teste para os quais o modelo de regressão 
+linear múltipla não produz boas previsões?
+
+
+## Modelos de Aprendizagem de Máquina baseados em Populações
+
+1. Especificação e treinamento de um modelo Random Forest
+
+```{r}
+# Para reproducibilidade
+set.seed(2056)
+
+# define a especificacao de um modelo Random Forest
+rf_spec <- rand_forest() |> 
+  set_mode('regression') |>
+  set_engine('randomForest') 
+  
+
+# Treina um modelo random forest 
+rf_mod <- rf_spec |> 
+  fit(medv ~ ., data = boston_train)
+```
+
+
+2. Avaliação da capacidade preditiva do modelo Random Forest
+
+```{r}
+rf_testfit <- rf_mod |>
+  predict(boston_test) |>
+  bind_cols(boston_test)
+
+rf_testfit |> dplyr::select(medv, .pred)
+
+head(rf_testfit, 20)
+```
+
+
+```{r}
+rf_testfit |>
+  metrics(truth = medv, estimate = .pred)
+```
+
+
+3. Visualização das Previsões e dos Dados de Teste
+
+```{r}
+mod_rf <- rf_testfit |> mutate(x = 1:128)
+
+ggplot(mod_rf, aes(x = x)) +
+  geom_line(aes(y = medv), color = "black") +
+  geom_line(aes(y = .pred), color = "steelblue", linetype = "twodash")
+```
+
+
